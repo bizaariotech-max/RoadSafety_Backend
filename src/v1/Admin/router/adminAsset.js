@@ -25,12 +25,117 @@ let APIEndPointNo = "";
 router.post("/AssetList", async (req, res) => {
   try {
     APIEndPointNo = "#KCC0201";
+
+    // Handle both req.body and req.query to support GET and POST requests
+    const requestData = req.body || req.query || {};
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      AssetCategoryLevel1,
+      AssetCategoryLevel2,
+      AssetCategoryLevel3,
+      StationId,
+      SubscriptionType,
+      AssetTypeId,
+      ParentAssetId,
+    } = requestData;
+
+    const query = {};
+
+    // Search filter
+    if (search) {
+      query.$or = [
+        { AssetName: { $regex: search, $options: "i" } },
+        { PhoneNumber: { $regex: search, $options: "i" } },
+        { Email: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Asset Category Level 1 filter
+    if (AssetCategoryLevel1) {
+      query.AssetCategoryLevel1 = AssetCategoryLevel1;
+    }
+
+    // Asset Category Level 2 filter
+    if (AssetCategoryLevel2) {
+      query.AssetCategoryLevel2 = AssetCategoryLevel2;
+    }
+
+    // Asset Category Level 3 filter
+    if (AssetCategoryLevel3) {
+      query.AssetCategoryLevel3 = AssetCategoryLevel3;
+    }
+
+    // Station filter
+    if (StationId) {
+      query.StationId = StationId;
+    }
+
+    // Subscription Type filter
+    if (SubscriptionType) {
+      query.SubscriptionType = SubscriptionType;
+    }
+
+    // Asset Type filter
+    if (AssetTypeId) {
+      query.AssetTypeId = AssetTypeId;
+    }
+
+    // Parent Asset filter
+    if (ParentAssetId) {
+      query.ParentAssetId = ParentAssetId;
+    }
+
+    const total = await AssetMaster.countDocuments(query);
+    const list = await AssetMaster.find(query)
+      .populate("StationId", "StationName")
+      .populate("ParentAssetId", "AssetName")
+      .populate("SubscriptionType", "lookup_value")
+      .populate("AssetCategoryLevel1", "lookup_value")
+      .populate("AssetCategoryLevel2", "lookup_value")
+      .populate("AssetCategoryLevel3", "lookup_value")
+      .populate("MedicalSpecialties", "lookup_value")
+      .populate("AssetTypeId", "lookup_value")
+      .select("-Password") // Exclude password from response
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    return res.json(
+      __requestResponse("200", __SUCCESS, {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        filters: {
+          search,
+          AssetCategoryLevel1,
+          AssetCategoryLevel2,
+          AssetCategoryLevel3,
+          StationId,
+          SubscriptionType,
+          AssetTypeId,
+          ParentAssetId,
+        },
+        list: __deepClone(list),
+      })
+    );
+  } catch (error) {
+    console.error("Asset List Error:", error.message);
+    return res.json(__requestResponse("500", __SOME_ERROR, error.message));
+  }
+});
+
+// List Assets with filtering and pagination
+router.post("/AssetList-old", async (req, res) => {
+  try {
+    APIEndPointNo = "#KCC0201";
     const {
       page = 1,
       limit = 10,
       search = "",
       AssetTypeId,
-      ParentAssetId
+      ParentAssetId,
     } = req.body;
 
     const skip = (page - 1) * limit;
@@ -41,7 +146,7 @@ router.post("/AssetList", async (req, res) => {
       filter.$or = [
         { AssetName: { $regex: search, $options: "i" } },
         { PhoneNumber: { $regex: search, $options: "i" } },
-        { Email: { $regex: search, $options: "i" } }
+        { Email: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -61,7 +166,7 @@ router.post("/AssetList", async (req, res) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
-      AssetMaster.countDocuments(filter)
+      AssetMaster.countDocuments(filter),
     ]);
 
     if (!assets || assets.length === 0) {
@@ -75,8 +180,8 @@ router.post("/AssetList", async (req, res) => {
         totalPages: Math.ceil(totalCount / limit),
         totalRecords: totalCount,
         hasNext: page * limit < totalCount,
-        hasPrev: page > 1
-      }
+        hasPrev: page > 1,
+      },
     };
 
     return res.json(__requestResponse("200", __SUCCESS, responseData));
@@ -85,6 +190,7 @@ router.post("/AssetList", async (req, res) => {
     return res.json(__requestResponse("500", __SOME_ERROR));
   }
 });
+
 
 // Add new Asset
 router.post("/SaveAsset", validateAssetData, checkDuplicateAsset, async (req, res) => {

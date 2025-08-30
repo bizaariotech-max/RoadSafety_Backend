@@ -7,7 +7,7 @@ const StationSchema = new mongoose.Schema(
       ref: "station_master",
       default: null,
     },
-    StationType: {
+    StationTypeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "admin_lookups",
     },

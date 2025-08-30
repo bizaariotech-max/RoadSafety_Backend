@@ -14,7 +14,36 @@ const { default: mongoose } = require("mongoose");
 const Joi = require("joi");
 const AdminEnvSetting = require("../../../models/AdminEnvSetting");
 
+// * Lookup list
 router.post("/lookuplist", LookupParser, async (req, res) => {
+  console.log(req.body);
+  console.log("api common lookup list");
+  try {
+    if (!req?.body?.lookup_type || req?.body?.lookup_type?.length === 0) {
+      return res.json(__requestResponse("400", "Lookup type is required"));
+    }
+
+    const list = await _lookup
+      .find({
+        lookup_type: { $in: req?.body?.lookup_type || [] },
+        ...(mongoose.Types.ObjectId.isValid(req.body?.parent_lookup_id) && {
+          parent_lookup_id: mongoose.Types.ObjectId(req.body?.parent_lookup_id),
+        }),
+        is_active: true,
+      })
+      .populate("parent_lookup_id", "lookup_value")
+      .lean();
+
+    if (list.length == 0) {
+      return res.json(__requestResponse("404", "No Data found"));
+    }
+    return res.json(__requestResponse("200", __SUCCESS, list));
+  } catch (error) {
+    return res.json(__requestResponse("500", error.message));
+  }
+});
+
+router.post("/lookuplistxx", LookupParser, async (req, res) => {
   const { parent_lookup_id } = req.body;
   var _filters = [];
   if (req.body.CodeList.length > 0) {
@@ -62,6 +91,10 @@ router.post("/lookuplist", LookupParser, async (req, res) => {
     return res.json(__requestResponse("501", __NO_LOOKUP_LIST));
   }
 });
+
+
+
+
 
 const lookuplistByParent = Joi.object({
   parentId: Joi.string().required(),

@@ -17,11 +17,15 @@ const {
 const TlbLookup = require("../../../models/lookupmodel");
 const { __CreateAuditLog } = require("../../../utils/auditlog");
 
+router.get("/test", (req, res) => {
+  res.send("Lookup Route Working");
+});
+
 router.get("/LookupTypeList", async (req, res) => {
   try {
     const list = await _lookup.distinct("lookup_type");
 
-    if (!list || list.length == 0) {
+    if (!list || list?.length == 0) {
       return res.json(__requestResponse("404", __NO_LOOKUP_LIST));
     }
     return res.json(__requestResponse("200", __SUCCESS, list));
@@ -34,7 +38,7 @@ router.get("/LookupTypeList", async (req, res) => {
 router.get("/ParentLookupTypeList", async (req, res) => {
   try {
     const list = await _lookup.distinct("parent_lookup_type");
-    if (!list || list.length == 0) {
+    if (!list || list?.length == 0) {
       return res.json(__requestResponse("404", __NO_LOOKUP_LIST));
     }
     return res.json(__requestResponse("200", __SUCCESS, list));
@@ -49,7 +53,7 @@ router.post("/LookupList", LookupParser, async (req, res) => {
   var _filters = [];
   console.log("req.body.CodeList", req.body.CodeList);
 
-  if (req.body.CodeList.length > 0) {
+  if (req.body?.CodeList?.length > 0) {
     req.body.CodeList.forEach(async (element) => {
       _filters.push(element?.toLowerCase());
     });
@@ -74,6 +78,7 @@ router.post("/LookupList", LookupParser, async (req, res) => {
 });
 
 router.post("/SaveLookup", checkLookupforInsert, async (req, res) => {
+  console.log(req.body, "lookup boody");
   let _lookup_id = req.body.lookup_id;
   let _lookup_type = req.body.lookup_type;
   let _lookup_value = req.body.lookup_value;
@@ -136,20 +141,217 @@ router.post("/SaveLookup", checkLookupforInsert, async (req, res) => {
       _client_id,
       null
     );
-    const _updateLookup = await TlbLookup.findByIdAndUpdate(_lookup_id, {
-      $set: {
-        client_id: mongoose.Types.ObjectId(_client_id),
-        lookup_type: _lookup_type,
-        lookup_value: _lookup_value,
-        parent_lookup_Id: mongoose.Types.ObjectId(_parent_lookup_Id),
-        parent_lookup_type: _parent_lookup_type,
-        sort_order: _sort_order,
-        is_active: _is_active,
-        managed_by_ui: _managed_by_ui,
+    // const _updateLookup = await TlbLookup.updateOne(
+    //   { _id: _lookup_id },
+    //   {
+    //     $set: {
+    //       client_id: mongoose.Types.ObjectId(_client_id),
+    //       lookup_type: _lookup_type,
+    //       lookup_value: _lookup_value,
+    //       parent_lookup_Id: mongoose.Types.ObjectId(_parent_lookup_Id),
+    //       parent_lookup_type: _parent_lookup_type,
+    //       sort_order: _sort_order,
+    //       is_active: _is_active,
+    //       managed_by_ui: _managed_by_ui,
+    //     },
+    //   }
+    // );
+    const _updateLookup = await TlbLookup.findByIdAndUpdate(
+      _lookup_id,
+      {
+        $set: {
+          client_id: mongoose.Types.ObjectId(_client_id),
+          lookup_type: _lookup_type,
+          lookup_value: _lookup_value,
+          parent_lookup_Id: mongoose.Types.ObjectId(_parent_lookup_Id),
+          parent_lookup_type: _parent_lookup_type,
+          sort_order: _sort_order,
+          is_active: _is_active,
+          managed_by_ui: _managed_by_ui,
+        },
       },
-    });
+      { new: true } // Returns the updated document
+    );
 
     return res.json(__requestResponse("200", __SUCCESS, _updateLookup));
+  }
+});
+
+// for all applications
+router.post("/LookupDisplayList", async (req, res) => {
+  try {
+    const { lookupType, clientTypeID } = req.body;
+
+    // console.log(
+    //   "[API Request] lookupType:",
+    //   lookupType,
+    //   "clientTypeID:",
+    //   clientTypeID
+    // );
+
+    // Aggregation query
+    const _list = await TlbLookup.aggregate([
+      { $match: { lookup_type: lookupType, is_active: true } }, // Match lookup type and is_active
+      {
+        $lookup: {
+          from: "admin_lookups",
+          localField: "parent_lookup_id",
+          foreignField: "_id",
+          as: "ParentLookup",
+        },
+      },
+      {
+        $unwind: {
+          path: "$ParentLookup",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "asset_masters",
+          localField: "client_id",
+          foreignField: "_id",
+          as: "Clients",
+        },
+      },
+      { $unwind: { path: "$Clients", preserveNullAndEmptyArrays: true } },
+      ...(clientTypeID
+        ? [
+            {
+              $match: {
+                "Clients._id": mongoose.Types.ObjectId(clientTypeID), // Filter by client ID
+              },
+            },
+          ]
+        : []),
+      {
+        $project: {
+          _id: 1,
+          "Clients.AssetName": 1,
+          "Clients.AssetCode": 1,
+          "Clients.AssetTypeID": 1,
+          "Clients._id": 1,
+          lookup_type: 1,
+          lookup_value: 1,
+          parent_lookup_type: 1,
+          parent_lookup_id: 1,
+          sort_order: 1,
+          is_active: 1,
+          CreatedAt: {
+            $dateToString: {
+              format: "%d-%b-%G %H:%M:%S",
+              date: "$createdAt",
+              timezone: "+05:30",
+            },
+          },
+          UpdatedAt: {
+            $dateToString: {
+              format: "%d-%b-%G %H:%M:%S",
+              date: "$updatedAt",
+              timezone: "+05:30",
+            },
+          },
+          ParentLookup: "$ParentLookup.lookup_value",
+          ClientName: "$Clients.AssetName",
+        },
+      },
+    ]);
+
+    return res.json(__requestResponse("200", __SUCCESS, _list));
+  } catch (error) {
+    console.error("[API Error]:", error);
+    return res
+      .status(500)
+      .json(__requestResponse("500", "Internal Server Error", error));
+  }
+});
+//  for  Admin Lookup Management  List Only
+router.post("/AdminLookupDisplayList", async (req, res) => {
+  try {
+    const { lookupType, clientTypeID } = req.body;
+
+    // console.log(
+    //   "[API Request] lookupType:",
+    //   lookupType,
+    //   "clientTypeID:",
+    //   clientTypeID
+    // );
+
+    // Aggregation query
+    const _list = await TlbLookup.aggregate([
+      // { $match: { lookup_type: lookupType, is_active: true } }, // Match lookup type
+      { $match: { lookup_type: lookupType } }, // Match lookup type
+      {
+        $lookup: {
+          from: "admin_lookups",
+          localField: "parent_lookup_id",
+          foreignField: "_id",
+          as: "ParentLookup",
+        },
+      },
+      {
+        $unwind: {
+          path: "$ParentLookup",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "asset_masters",
+          localField: "client_id",
+          foreignField: "_id",
+          as: "Clients",
+        },
+      },
+      { $unwind: { path: "$Clients", preserveNullAndEmptyArrays: true } },
+      ...(clientTypeID
+        ? [
+            {
+              $match: {
+                "Clients._id": mongoose.Types.ObjectId(clientTypeID), // Filter by client ID
+              },
+            },
+          ]
+        : []),
+      {
+        $project: {
+          _id: 1,
+          "Clients.AssetName": 1,
+          "Clients.AssetCode": 1,
+          "Clients.AssetTypeID": 1,
+          "Clients._id": 1,
+          lookup_type: 1,
+          lookup_value: 1,
+          parent_lookup_type: 1,
+          parent_lookup_id: 1,
+          sort_order: 1,
+          is_active: 1,
+          CreatedAt: {
+            $dateToString: {
+              format: "%d-%b-%G %H:%M:%S",
+              date: "$createdAt",
+              timezone: "+05:30",
+            },
+          },
+          UpdatedAt: {
+            $dateToString: {
+              format: "%d-%b-%G %H:%M:%S",
+              date: "$updatedAt",
+              timezone: "+05:30",
+            },
+          },
+          ParentLookup: "$ParentLookup.lookup_value",
+          ClientName: "$Clients.AssetName",
+        },
+      },
+    ]);
+
+    return res.json(__requestResponse("200", __SUCCESS, _list));
+  } catch (error) {
+    console.error("[API Error]:", error);
+    return res
+      .status(500)
+      .json(__requestResponse("500", "Internal Server Error", error));
   }
 });
 
@@ -187,73 +389,5 @@ router.post("/SaveLookup", checkLookupforInsert, async (req, res) => {
 //   }
 // });
 
-
-router.post("/LookupDisplayList", async (req, res) => {
-  const _list = await TlbLookup.aggregate([
-    {
-      $match: { lookup_type: req.body.lookupType },
-    },
-
-    {
-      $lookup: {
-        from: "admin_lookups",
-        localField: "parent_lookup_id",
-        foreignField: "_id",
-        as: "ParentLookup",
-      },
-    },
-    {
-      $unwind: {
-        path: "$ParentLookup",
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $lookup: {
-        from: "asset_masters",
-        localField: "client_id",
-        foreignField: "_id",
-        as: "Clients",
-      },
-    },
-    {
-      $unwind: {
-        path: "$Clients",
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $project: {
-        _id: 1,
-        "Clients.AssetName": 1,
-        "Clients.AssetCode": 1,
-        "Clients.AssetTypeID": 1,
-        lookup_type: 1,
-        lookup_value: 1,
-        parent_lookup_type: 1,
-        parent_lookup_id: 1,
-        sort_order: 1,
-        is_active: 1,
-        CreatedAt: {
-          $dateToString: {
-            format: "%d-%b-%G %H:%M:%S",
-            date: "$createdAt",
-            timezone: "+05:30",
-          },
-        },
-        UpdatedAt: {
-          $dateToString: {
-            format: "%d-%b-%G %H:%M:%S",
-            date: "$updatedAt",
-            timezone: "+05:30",
-          },
-        },
-        ParentLookup: "$ParentLookup.lookup_value",
-      },
-    },
-  ]);
-
-  return res.json(__requestResponse("200", __SUCCESS, _list));
-});
 
 module.exports = router;

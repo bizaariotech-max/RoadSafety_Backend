@@ -11,17 +11,19 @@ const _lookup = require("../../../models/lookupmodel");
 
 // Validation schema for Station Master
 const stationValidationSchema = Joi.object({
-  station_id: Joi.string().optional().allow(""),
+  _id: Joi.string().optional().allow(""),
   ParentStationId: Joi.string().optional().allow(null, ""),
-  StationType: Joi.string().required(),
+  StationTypeId: Joi.string().required(),
   StationName: Joi.string().required().min(2).max(100),
   AddressLine1: Joi.string().required().min(5).max(200),
   AddressLine2: Joi.string().optional().allow("").max(200),
-  PostalCode: Joi.string().required().pattern(/^[0-9]{6}$/),
+  PostalCode: Joi.string()
+    .required()
+    .pattern(/^[0-9]{6}$/),
   CityId: Joi.string().required(),
   GeoLocation: Joi.object({
     type: Joi.string().valid("Point").default("Point"),
-    coordinates: Joi.array().items(Joi.number()).length(2).required()
+    coordinates: Joi.array().items(Joi.number()).length(2).required(),
   }).optional(),
   IsActive: Joi.boolean().default(true),
 });
@@ -29,17 +31,20 @@ const stationValidationSchema = Joi.object({
 const validateStationData = async (req, res, next) => {
   try {
     const { error, value } = stationValidationSchema.validate(req.body);
-    
+
     if (error) {
       return res.json(
-        __requestResponse("400", `${__VALIDATION_ERROR}: ${error.details[0].message}`)
+        __requestResponse(
+          "400",
+          `${__VALIDATION_ERROR}: ${error.details[0].message}`
+        )
       );
     }
 
-    // Validate StationType exists in lookups
-    if (value.StationType) {
-      const stationType = await _lookup.findById(value.StationType);
-      if (!stationType || stationType.lookup_type !== "station_type") {
+    // Validate StationTypeId exists in lookups
+    if (value.StationTypeId) {
+      const StationTypeId = await _lookup.findById(value.StationTypeId);
+      if (!StationTypeId || StationTypeId.lookup_type !== "station_type") {
         return res.json(
           __requestResponse("400", "Invalid Station Type selected")
         );
@@ -50,9 +55,7 @@ const validateStationData = async (req, res, next) => {
     if (value.CityId) {
       const city = await _lookup.findById(value.CityId);
       if (!city || city.lookup_type !== "city") {
-        return res.json(
-          __requestResponse("400", "Invalid City selected")
-        );
+        return res.json(__requestResponse("400", "Invalid City selected"));
       }
     }
 
@@ -76,28 +79,31 @@ const validateStationData = async (req, res, next) => {
 
 const checkDuplicateStation = async (req, res, next) => {
   try {
-    const { station_id, StationName, AddressLine1, PostalCode } = req.validatedData;
-    
+    const { _id, StationName, AddressLine1, PostalCode } = req.validatedData;
+
     const duplicateQuery = {
       $or: [
         { StationName: { $regex: new RegExp(`^${StationName}$`, "i") } },
-        { 
+        {
           AddressLine1: { $regex: new RegExp(`^${AddressLine1}$`, "i") },
-          PostalCode: PostalCode
-        }
-      ]
+          PostalCode: PostalCode,
+        },
+      ],
     };
 
     // Exclude current station if editing
-    if (station_id && station_id !== "") {
-      duplicateQuery._id = { $ne: mongoose.Types.ObjectId(station_id) };
+    if (_id && _id !== "") {
+      duplicateQuery._id = { $ne: mongoose.Types.ObjectId(_id) };
     }
 
     const existingStation = await StationMaster.findOne(duplicateQuery);
-    
+
     if (existingStation) {
       return res.json(
-        __requestResponse("400", "Station with same name or address already exists")
+        __requestResponse(
+          "400",
+          "Station with same name or address already exists"
+        )
       );
     }
 
