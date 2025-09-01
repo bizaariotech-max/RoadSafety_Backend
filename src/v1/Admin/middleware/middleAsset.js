@@ -10,6 +10,31 @@ const AssetMaster = require("../../../models/AssetMaster");
 const _lookup = require("../../../models/lookupmodel");
 const bcrypt = require("bcrypt");
 
+
+// Helper function for ObjectId validation - new
+const objectIdField = (isRequired = false) => {
+  let schema = Joi.string().custom((value, helpers) => {
+    // Convert empty string to null to prevent MongoDB cast errors
+    if (value === "") {
+      return null;
+    }
+    if (value && !mongoose.Types.ObjectId.isValid(value)) {
+      return helpers.error("any.invalid");
+    }
+    return value;
+  }).empty(''); // This converts empty strings to undefined/null
+
+  if (isRequired) {
+    return schema.required().messages({
+      "any.required": "This field is required",
+      "string.empty": "This field cannot be empty",
+      "any.invalid": "Invalid ObjectId format",
+    });
+  } else {
+    return schema.allow(null).optional();
+  }
+};
+
 // Validation schema for Individual Asset
 const individualAssetValidationSchema = Joi.object({
   asset_id: Joi.string().optional().allow(null, ""),
@@ -32,7 +57,8 @@ const individualAssetValidationSchema = Joi.object({
     .allow(null, ""),
   ReportingAssetID: Joi.string().optional().allow(null, ""),
   DesignationTypeId: Joi.string().optional().allow(null, ""),
-  DepartmentTypeId: Joi.string().optional().allow(null, ""),
+  // DepartmentTypeId: Joi.string().optional().allow(null, ""),
+  DepartmentTypeId: Joi.string().optional().allow(null).empty(""),
 });
 
 // Validation schema for Vehicle Asset
