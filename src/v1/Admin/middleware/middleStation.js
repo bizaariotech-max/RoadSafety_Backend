@@ -11,7 +11,7 @@ const _lookup = require("../../../models/lookupmodel");
 
 // Validation schema for Station Master
 const stationValidationSchema = Joi.object({
-  _id: Joi.string().optional().allow(""),
+  _id: Joi.string().optional().allow(null, ""),
   ParentStationId: Joi.string().optional().allow(null, ""),
   StationTypeId: Joi.string().required(),
   StationName: Joi.string().required().min(2).max(100),
