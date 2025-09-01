@@ -40,7 +40,7 @@ const vehicleAssetValidationSchema = Joi.object({
   asset_id: Joi.string().optional().allow(null, ""),
   AssetTypeId: Joi.string().required(),
   ParentAssetId: Joi.string().optional().allow(null, ""),
-  AssetName: Joi.string().required().min(2).max(100),
+  // AssetName: Joi.string().required().min(2).max(100),
   FleetTypeId: Joi.string().required(),
   RegistrationNumber: Joi.string().required().min(3).max(20),
   EngineNumber: Joi.string().required().min(3).max(50),

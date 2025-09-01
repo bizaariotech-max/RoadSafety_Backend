@@ -166,7 +166,7 @@ router.post(
       const {
         AssetTypeId,
         ParentAssetId,
-        AssetName,
+        // AssetName,
         FleetTypeId,
         RegistrationNumber,
         EngineNumber,
@@ -182,7 +182,7 @@ router.post(
       const newAsset = new AssetMaster({
         AssetTypeId,
         ParentAssetId: ParentAssetId || null,
-        AssetName,
+        // AssetName,
         FleetTypeId,
         RegistrationNumber,
         EngineNumber,
@@ -324,7 +324,7 @@ router.post(
       const {
         AssetTypeId,
         ParentAssetId,
-        AssetName,
+        // AssetName,
         FleetTypeId,
         RegistrationNumber,
         EngineNumber,
@@ -340,7 +340,7 @@ router.post(
       const updateData = {
         AssetTypeId,
         ParentAssetId: ParentAssetId || null,
-        AssetName,
+        // AssetName,
         FleetTypeId,
         RegistrationNumber,
         EngineNumber,
