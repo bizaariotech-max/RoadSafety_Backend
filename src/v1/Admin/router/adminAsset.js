@@ -193,62 +193,68 @@ router.post("/AssetList-old", async (req, res) => {
 
 
 // Add new Asset
-router.post("/SaveAsset", validateAssetData, checkDuplicateAsset, async (req, res) => {
-  try {
-    APIEndPointNo = "#KCC0202";
-    const {
-      AssetTypeId,
-      ParentAssetId,
-      AssetName,
-      PhoneNumber,
-      Email,
-      Password
-    } = req.validatedData;
+router.post(
+  "/SaveAsset",
+  validateAssetData,
+  //  checkDuplicateAsset,
+  async (req, res) => {
+    try {
+      APIEndPointNo = "#KCC0202";
+      const {
+        AssetTypeId,
+        ParentAssetId,
+        AssetName,
+        PhoneNumber,
+        Email,
+        Password,
+      } = req.validatedData;
 
-    const assetData = {
-      AssetTypeId: mongoose.Types.ObjectId(AssetTypeId),
-      ParentAssetId: ParentAssetId && ParentAssetId !== "" 
-        ? mongoose.Types.ObjectId(ParentAssetId) 
-        : null,
-      AssetName,
-      PhoneNumber,
-      Email,
-      Password
-    };
+      const assetData = {
+        AssetTypeId: mongoose.Types.ObjectId(AssetTypeId),
+        ParentAssetId:
+          ParentAssetId && ParentAssetId !== ""
+            ? mongoose.Types.ObjectId(ParentAssetId)
+            : null,
+        AssetName,
+        PhoneNumber,
+        Email,
+        Password,
+      };
 
-    const newAsset = await AssetMaster.create(assetData);
+      const newAsset = await AssetMaster.create(assetData);
 
-    if (newAsset) {
-      // Create audit log for insert (exclude password from audit)
-      const auditData = { ...newAsset.toObject() };
-      delete auditData.Password;
-      
-      await __CreateAuditLog(
-        "asset_master",
-        "INSERT",
-        "NEW_ASSET",
-        null,
-        JSON.stringify(auditData),
-        newAsset._id,
-        null, // ClientId - you may need to get this from req.user or session
-        null  // LoginLogId - you may need to get this from req.user or session
-      );
+      if (newAsset) {
+        // Create audit log for insert (exclude password from audit)
+        const auditData = { ...newAsset.toObject() };
+        delete auditData.Password;
 
-      // Remove password from response
-      const responseAsset = newAsset.toObject();
-      delete responseAsset.Password;
+        await __CreateAuditLog(
+          "asset_master",
+          "INSERT",
+          "NEW_ASSET",
+          null,
+          JSON.stringify(auditData),
+          newAsset._id,
+          null, // ClientId - you may need to get this from req.user or session
+          null // LoginLogId - you may need to get this from req.user or session
+        );
 
-      return res.json(
-        __requestResponse("200", "Asset created successfully", responseAsset)
-      );
-    } else {
-      return res.json(__requestResponse("400", __CLIENT_SAVE_ERROR));
+        // Remove password from response
+        const responseAsset = newAsset.toObject();
+        delete responseAsset.Password;
+
+        return res.json(
+          __requestResponse("200", "Asset created successfully", responseAsset)
+        );
+      } else {
+        return res.json(__requestResponse("400", __CLIENT_SAVE_ERROR));
+      }
+    } catch (error) {
+      console.log(`${APIEndPointNo} Error:`, error.message);
+      return res.json(__requestResponse("500", __SOME_ERROR));
     }
-  } catch (error) {
-    console.log(`${APIEndPointNo} Error:`, error.message);
-    return res.json(__requestResponse("500", __SOME_ERROR));
   }
-});
+);
 
 // Edit/Update Asset
 router.post("/UpdateAsset", validateAssetData, checkDuplicateAsset, async (req, res) => {
